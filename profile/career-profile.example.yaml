@@ -1,0 +1,77 @@
+# Example profile with a fictional person. Copy to career-profile.yaml and replace with your own facts.
+# Every claim the agent makes (resume, cover letters, briefs) must trace back to a verified fact here.
+version: 2
+
+identity:
+  name: Alex Rivera
+  resume_name: Alex Rivera
+  location: Quezon City, Metro Manila, Philippines
+  resume_location: Quezon City, NCR
+  headline: Full-Stack Web Developer · BS Computer Science
+  phone: 0900 000 0000
+  email: alex.rivera@example.com
+  linkedin_url: linkedin.com/in/alex-rivera-example
+  github_url: github.com/alex-rivera-example
+  degree: Bachelor of Science in Computer Science
+  school: Example State University
+  graduation_year: 2026
+
+summary: >-
+  Full-stack web developer and 2026 Computer Science graduate who has built
+  web applications with React, TypeScript, Laravel, and PostgreSQL.
+
+target_roles:
+  - Junior Software Developer
+  - Full Stack Developer
+
+skills:
+  frontend: [React, Next.js, Tailwind CSS]
+  backend_apis: [Laravel, REST APIs, authentication/authorization]
+  data_cloud: [PostgreSQL, Supabase, Vercel]
+  languages: [TypeScript, JavaScript, PHP, SQL]
+  tools_testing: [Git, Docker, testing, debugging]
+  ai_automation: [n8n, prompt design]
+  other: []
+  unverified: []
+
+experience:
+  - id: example_internship
+    type: internship
+    company: Example Corp
+    title: Software Intern
+    start: 2026-01
+    end: 2026-04
+    verified_facts:
+      - Built internal dashboards in React for the operations team.
+      - Wrote SQL reports for weekly inventory reviews.
+
+projects:
+  - id: shop_app
+    name: Campus Shop - Ordering App
+    type: personal
+    role: Full-Stack Developer
+    date: 2026-05
+    url: example.com
+    technologies: [React, TypeScript, Supabase]
+    verified_facts:
+      - Built an ordering app with a product catalog, cart, and order tracking.
+      - Added row-level security so each student sees only their own orders.
+
+education:
+  - school: Example State University
+    degree: Bachelor of Science in Computer Science
+    location: Quezon City
+    start: 2022
+    end: 2026
+    verified_facts:
+      - Dean's Lister.
+
+leadership: []
+
+rules:
+  never_invent_experience: true
+  never_invent_metrics: true
+  never_invent_skills: true
+  never_claim_personal_or_academic_projects_as_professional_employment: true
+  prefer_one_page_resume: true
+  tailor_only_from_verified_facts: true

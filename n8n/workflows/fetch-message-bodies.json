@@ -1,0 +1,175 @@
+{
+  "name": "JobAgent - Fetch Message Bodies",
+  "nodes": [
+    {
+      "id": "a862a2a6-271c-4c09-a29d-4e20be2e5e18",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        240,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "jobagent-fetch-bodies",
+        "authentication": "none",
+        "responseMode": "lastNode",
+        "responseData": "allEntries"
+      }
+    },
+    {
+      "id": "e5eb974c-09f9-43d4-b998-c75b0e813039",
+      "name": "Split Message IDs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst body = input.body || {};\nconst ids = body.message_ids;\nif (!Array.isArray(ids)) throw new Error('Body must contain message_ids as an array');\nif (ids.length > 20) throw new Error('message_ids may contain at most 20 IDs');\nif (ids.length === 0) throw new Error('message_ids must contain at least one ID');\nconst cleaned = ids.map((id) => String(id || '').trim());\nif (cleaned.some((id) => !id)) throw new Error('message_ids may not contain empty IDs');\nconst rawMaxChars = body.max_chars === undefined ? 1500 : Number(body.max_chars);\nif (!Number.isInteger(rawMaxChars) || rawMaxChars < 1 || rawMaxChars > 8000) throw new Error('max_chars must be an integer from 1 to 8000');\nreturn cleaned.map((message_id) => ({ json: { message_id, max_chars: rawMaxChars } }));",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "f2f925dd-8fb2-42a6-b685-830c59b10dbc",
+      "name": "Normalize Bodies",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        140
+      ],
+      "parameters": {
+        "jsCode": "const decodeEntities = (value) => String(value ?? '')\n  .replace(/&#(\\d+);/g, (_, n) => String.fromCodePoint(Number(n)))\n  .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))\n  .replace(/&nbsp;/gi, ' ')\n  .replace(/&amp;/gi, '&')\n  .replace(/&quot;/gi, '\"')\n  .replace(/&#39;|&apos;/gi, \"'\")\n  .replace(/&lt;/gi, '<')\n  .replace(/&gt;/gi, '>');\n\nconst clean = (value) => decodeEntities(value)\n  .replace(/[\\u034F\\u200B\\u200C\\u200D\\u00AD\\uFEFF]/g, '')\n  .replace(/&(?:zwnj|zwj|shy|#8203|#8204|#8205|#173|#65279|#x200b|#x200c|#x200d|#xad|#xfeff);/gi, ' ')\n  .replace(/\\s+/g, ' ')\n  .trim();\n\nconst stripHtml = (value) => clean(String(value ?? '')\n  .replace(/<style[\\s\\S]*?<\\/style>/gi, ' ')\n  .replace(/<script[\\s\\S]*?<\\/script>/gi, ' ')\n  .replace(/<br\\s*\\/?>/gi, '\\n')\n  .replace(/<\\/p>/gi, '\\n')\n  .replace(/<[^>]+>/g, ' '));\n\nconst extractLinks = (html) => {\n  if (!html || typeof html !== 'string') return [];\n  const links = [];\n  const seen = new Set();\n  const anchorRe = /<a\\b([^>]*)>([\\s\\S]*?)<\\/a\\s*>/gi;\n  let match;\n  while ((match = anchorRe.exec(html)) !== null && links.length < 60) {\n    const attrs = match[1] || '';\n    const inner = match[2] || '';\n    const hrefMatch = attrs.match(/\\bhref\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s\"'=<>`]+))/i);\n    if (!hrefMatch) continue;\n    const url = decodeEntities(hrefMatch[1] ?? hrefMatch[2] ?? hrefMatch[3] ?? '').trim();\n    if (!url || /^(?:#|cid:|data:|javascript:|about:)/i.test(url)) continue;\n    const text = stripHtml(inner);\n    if (!text) continue;\n    const filterText = `${text} ${url}`.toLowerCase();\n    if (/unsubscribe|email[\\s_-]*preferences?|manage(?:%20|\\s)+(?:this(?:%20|\\s)+)?(?:job(?:%20|\\s)+)?alert|alert[\\s_-]*settings?|notification[\\s_-]*settings?|edit(?:%20|\\s)+frequency|contact(?:%20|\\s)+us|\\bsettings?\\b|\\bprivacy\\b|\\bhelp\\b/.test(filterText)) continue;\n    if (/apps\\.apple\\.com|itunes\\.apple\\.com|play\\.google\\.com|app[\\s_-]*store|google(?:%20|\\s)+play|(?:download|install|get)(?:%20|\\s|\\w){0,24}(?:%20|\\s)+app\\b/.test(filterText)) continue;\n    if (seen.has(url)) continue;\n    seen.add(url);\n    links.push({ text, url });\n  }\n  return links;\n};\n\nconst body = $('Webhook').first().json.body || {};\nconst maxChars = body.max_chars === undefined ? 1500 : Number(body.max_chars);\nreturn $input.all().map((item) => {\n  const msg = item.json || {};\n  const htmlBody = typeof msg.html === 'string' ? msg.html : '';\n  let rawBody = htmlBody || msg.text || msg.textPlain || msg.body || msg.textAsHtml || '';\n  if (typeof rawBody !== 'string') rawBody = JSON.stringify(rawBody);\n  const bodyText = (/<[^>]+>/.test(rawBody) ? stripHtml(rawBody) : clean(rawBody)).slice(0, maxChars);\n  return { json: { message_id: clean(msg.id || msg.messageId), body_text: bodyText, links: extractLinks(htmlBody) } };\n});",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "524b468d-7ff2-423a-adb6-2f53cdfadd2d",
+      "name": "Get Message",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        900,
+        460
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "get",
+        "authentication": "oAuth2",
+        "messageId": "={{ $json.message_id }}",
+        "simple": false,
+        "options": {
+          "downloadAttachments": false
+        }
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "id": "da0df38f-d141-4e92-bb69-e04ba0b25158",
+      "name": "Wait 5 Seconds",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        460
+      ],
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 5,
+        "unit": "seconds"
+      }
+    },
+    {
+      "id": "29a28e66-4e9c-4a25-9d49-9f52b26170e9",
+      "name": "Loop Over Items",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        680,
+        300
+      ],
+      "parameters": {
+        "batchSize": 5,
+        "options": {
+          "reset": false
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Split Message IDs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Message IDs": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Message": {
+      "main": [
+        [
+          {
+            "node": "Wait 5 Seconds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 5 Seconds": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Normalize Bodies",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

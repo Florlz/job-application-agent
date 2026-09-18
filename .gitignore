@@ -1,0 +1,36 @@
+# Allowlist: ignore everything, then publish only these paths.
+# Private data (data/, applications/, output/, profile/, secrets*) can never be committed by accident.
+/*
+!/.gitignore
+!/README.md
+!/AGENTS.md
+!/secrets-discord.example.json
+
+!/docs/
+
+!/tools/
+/tools/node_modules/
+/tools/run_fixup_*.py
+__pycache__/
+
+!/hermes/
+/hermes/*
+!/hermes/cron/
+!/hermes/scripts/
+!/hermes/skills/
+/hermes/skills/*
+!/hermes/skills/job-hunt/
+
+!/n8n/
+
+!/profile/
+/profile/*
+!/profile/*.example.*
+
+*.db
+*.pdf
+*.docx
+secrets*
+!secrets-discord.example.json
+.env
+/hermes/cron/*fixup*

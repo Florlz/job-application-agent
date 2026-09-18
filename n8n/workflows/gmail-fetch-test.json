@@ -1,0 +1,58 @@
+{
+  "id": "JobAgentGmailTst",
+  "name": "JobAgent - Gmail Fetch Test",
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "nodes": [
+    {
+      "id": "b1f0c7a2-0001-4000-8000-000000000001",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "parameters": {}
+    },
+    {
+      "id": "b1f0c7a2-0001-4000-8000-000000000002",
+      "name": "Labels",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0],
+      "parameters": {
+        "jsCode": "// Job-search labels to fetch. Read-only test: no DB writes.\nconst DAYS = 30;\nreturn [\n  'Job Search/Application Updates',\n  'Job Search/Interviews & Offers',\n  'Job Search/Job Alerts',\n].map(label => ({ json: { label, query: `label:\"${label}\" newer_than:${DAYS}d` } }));"
+      }
+    },
+    {
+      "id": "b1f0c7a2-0001-4000-8000-000000000003",
+      "name": "Gmail: Get Messages",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [440, 0],
+      "alwaysOutputData": false,
+      "parameters": {
+        "resource": "message",
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 25,
+        "simple": true,
+        "filters": { "q": "={{ $json.query }}" },
+        "options": {}
+      }
+    },
+    {
+      "id": "b1f0c7a2-0001-4000-8000-000000000004",
+      "name": "Normalize Metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 0],
+      "parameters": {
+        "jsCode": "// One clean record per message. Hermes consumes these; nothing is written anywhere.\nreturn $input.all().map((item, i) => {\n  const m = item.json;\n  const header = (name) =>\n    m[name] ?? m[name.toLowerCase()] ??\n    m.payload?.headers?.find(h => h.name.toLowerCase() === name.toLowerCase())?.value ?? null;\n  const date = m.internalDate ? new Date(Number(m.internalDate)).toISOString() : header('Date');\n  return {\n    json: {\n      message_id: m.id,\n      thread_id: m.threadId,\n      label: $('Labels').itemMatching(i)?.json.label ?? null,\n      date,\n      from: header('From'),\n      to: header('To'),\n      subject: header('Subject'),\n      snippet: m.snippet ?? null,\n    },\n  };\n});"
+      }
+    }
+  ],
+  "connections": {
+    "Manual Trigger": { "main": [[{ "node": "Labels", "type": "main", "index": 0 }]] },
+    "Labels": { "main": [[{ "node": "Gmail: Get Messages", "type": "main", "index": 0 }]] },
+    "Gmail: Get Messages": { "main": [[{ "node": "Normalize Metadata", "type": "main", "index": 0 }]] }
+  }
+}

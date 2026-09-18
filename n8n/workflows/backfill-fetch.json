@@ -1,0 +1,176 @@
+{
+  "name": "JobAgent - Backfill Fetch",
+  "nodes": [
+    {
+      "id": "70b58023-052f-42f3-8ae9-543ebec7fe09",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        240,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "jobagent-backfill-fetch",
+        "authentication": "none",
+        "responseMode": "lastNode",
+        "responseData": "allEntries"
+      }
+    },
+    {
+      "id": "e0d91886-d891-4041-9baa-8a76fe6abb76",
+      "name": "Queries",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst body = input.body || {};\nconst after = String(body.after || '').trim();\nconst before = String(body.before || '').trim();\nconst hasAfter = Boolean(after);\nconst hasBefore = Boolean(before);\nif (hasAfter && !/^\\d{4}\\/\\d{2}\\/\\d{2}$/.test(after)) throw new Error('after must use YYYY/MM/DD format');\nif (hasBefore && !/^\\d{4}\\/\\d{2}\\/\\d{2}$/.test(before)) throw new Error('before must use YYYY/MM/DD format');\nconst custom = body.queries;\nlet bases;\nif (custom !== undefined) {\n  if (!Array.isArray(custom) || custom.length === 0) throw new Error('queries must be a non-empty array when provided');\n  const cleaned = custom.map((query) => String(query || '').trim());\n  if (cleaned.some((query) => !query)) throw new Error('queries may not contain empty values');\n  bases = cleaned.map((query, index) => ({ source_query: `Custom query ${index + 1}`, query }));\n} else {\n  if (!hasAfter || !hasBefore) throw new Error('Body must contain after and before in YYYY/MM/DD format');\n  bases = [\n    { source_query: 'Application Updates', query: 'label:\"Job Search/Application Updates\"' },\n    { source_query: 'Interviews & Offers', query: 'label:\"Job Search/Interviews & Offers\"' },\n    { source_query: 'Job Alerts application events', query: 'label:\"Job Search/Job Alerts\" (subject:\"successfully submitted\" OR subject:\"has closed\" OR subject:\"application\")' },\n    { source_query: 'Sent application messages', query: 'in:sent (application OR applying OR resume OR CV OR \"job opening\" OR position)' },\n  ];\n}\nconst dateParts = [];\nif (hasAfter) dateParts.push(`after:${after}`);\nif (hasBefore) dateParts.push(`before:${before}`);\nreturn bases.map((entry) => ({ json: { source_query: entry.source_query, query: [entry.query, ...dateParts].join(' ') } }));",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "3b4dd007-5e0f-4d56-94ee-7eeaf495d0d4",
+      "name": "Gmail",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        900,
+        460
+      ],
+      "parameters": {
+        "authentication": "oAuth2",
+        "filters": {
+          "q": "={{ $json.query }}"
+        },
+        "operation": "getAll",
+        "resource": "message",
+        "returnAll": true,
+        "simple": true
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "name": "Gmail account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "120fef36-8545-48bc-aa3e-347721624958",
+      "name": "Normalize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        160
+      ],
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst byId = new Map();\nconst clean = (value) => String(value ?? '').replace(/[\\u034F\\u200B\\u200C\\u200D\\u00AD\\uFEFF]/g, '').replace(/\\s+/g, ' ').trim();\nfor (let i = 0; i < items.length; i += 1) {\n  const msg = items[i].json || {};\n  const messageId = clean(msg.id || msg.messageId);\n  if (!messageId) continue;\n  let source = clean(msg.source_query);\n  try { source = clean($('Queries').itemMatching(i).json.source_query) || source; } catch {}\n  const rawDate = msg.internalDate ? Number(msg.internalDate) : msg.date;\n  const parsedDate = new Date(rawDate);\n  const normalized = {\n    message_id: messageId,\n    thread_id: clean(msg.threadId || msg.thread_id),\n    sources: source ? [source] : [],\n    date: Number.isNaN(parsedDate.getTime()) ? '' : parsedDate.toISOString(),\n    from: clean(msg.From || msg.from),\n    to: clean(msg.To || msg.to),\n    subject: clean(msg.Subject || msg.subject),\n    snippet: clean(msg.snippet),\n  };\n  if (byId.has(messageId)) {\n    const existing = byId.get(messageId);\n    for (const s of normalized.sources) if (!existing.sources.includes(s)) existing.sources.push(s);\n    if (!existing.snippet && normalized.snippet) existing.snippet = normalized.snippet;\n  } else {\n    byId.set(messageId, normalized);\n  }\n}\nreturn Array.from(byId.values()).map((json) => ({ json }));",
+        "language": "javaScript",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "6dfcb500-7d5b-4a81-9985-782cb59ba37f",
+      "name": "Loop Over Items",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        720,
+        300
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {
+          "reset": false
+        }
+      }
+    },
+    {
+      "id": "825e0bbe-5db9-4215-a2cb-7a136f975153",
+      "name": "Wait 15 Seconds",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1080,
+        460
+      ],
+      "parameters": {
+        "amount": 15,
+        "resume": "timeInterval",
+        "unit": "seconds"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Queries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queries": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail": {
+      "main": [
+        [
+          {
+            "node": "Wait 15 Seconds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 15 Seconds": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

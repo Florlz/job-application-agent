@@ -1,0 +1,23 @@
+{
+  "_about": "Which facts, skills and projects appear on the standard resume. Cover letters may only claim these. Copy to standard-resume.json.",
+  "skills": {
+    "frontend": ["React", "Next.js", "Tailwind CSS"],
+    "backend_apis": ["Laravel", "REST APIs", "authentication/authorization"],
+    "data_cloud": ["PostgreSQL", "Supabase", "Vercel"],
+    "languages": ["TypeScript", "JavaScript", "PHP", "SQL"],
+    "tools_testing": ["Git", "Docker", "testing", "debugging"],
+    "ai_automation": ["n8n", "prompt design"]
+  },
+  "projects": [
+    {"id": "shop_app", "bullets": [
+      ["Built an ordering app with a product catalog, cart, and order tracking."],
+      ["Added row-level security so each student sees only their own orders."]
+    ]}
+  ],
+  "experience": [
+    {"id": "example_internship", "bullets": [
+      ["Built internal dashboards in React for the operations team."],
+      ["Wrote SQL reports for weekly inventory reviews."]
+    ]}
+  ]
+}
