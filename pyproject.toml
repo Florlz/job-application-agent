@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jobagent-local"
+version = "0.1.0"
+description = "Guided Windows setup for JobAgent"
+requires-python = ">=3.11"
+dependencies = ["textual>=8.2,<9", "PyYAML>=6,<7", "pypdf>=5,<7", "tzlocal>=5,<6", "tzdata>=2025.1"]
+
+[project.scripts]
+jobagent = "jobagent.__main__:main"
+
+[tool.setuptools]
+packages = ["jobagent"]

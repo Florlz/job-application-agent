@@ -70,6 +70,7 @@ def header(profile):
 
 def to_pdf_and_count_pages(docx, pdf):
     """Word (COM) converts the DOCX to PDF and reports the page count."""
+    docx, pdf = str(docx).replace("'", "''"), str(pdf).replace("'", "''")
     ps = f"""
 $w = New-Object -ComObject Word.Application
 try {{
@@ -145,9 +146,10 @@ def company_slug(company):
     return "_".join(words[:3]) or "Company"
 
 
-def next_name(app_dir, company):
+def next_name(app_dir, company, person="Florian_Monte"):
     """Florian_Monte_Cover_Letter_<Company>, then _v2, _v3 ...; never reuses an existing name."""
-    base = f"Florian_Monte_Cover_Letter_{company_slug(company)}"
+    person = "_".join(re.findall(r"[\w-]+", person)) or "Applicant"
+    base = f"{person}_Cover_Letter_{company_slug(company)}"
     n = 1
     while True:
         name = base if n == 1 else f"{base}_v{n}"
@@ -163,7 +165,7 @@ def main():
     p.add_argument("--check-only", action="store_true", help="validate without writing files")
     a = p.parse_args()
 
-    app_dir = Path(a.app_dir)
+    app_dir = Path(a.app_dir).resolve()
     profile = yaml.safe_load(PROFILE.read_text(encoding="utf-8"))
     draft = json.loads(Path(a.draft).read_text(encoding="utf-8"))
     if not (app_dir / "posting.txt").exists():
@@ -180,7 +182,7 @@ def main():
               "date": f"{today:%B} {today.day}, {today.year}",
               "company": draft["company"], "role": draft["role"], "greeting": draft["greeting"],
               "paragraphs": draft["paragraphs"], "signature": name.title()}
-    base = next_name(app_dir, draft["company"])
+    base = next_name(app_dir, draft["company"], profile["identity"].get("resume_name") or profile["identity"]["name"])
     md = app_dir / f"{base}.md"
     docx, pdf = app_dir / f"{base}.docx", app_dir / f"{base}.pdf"
 
