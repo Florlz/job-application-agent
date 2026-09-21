@@ -6,7 +6,7 @@
 
 <channel>: job-inbox, ready-to-apply, job-review, applications, interviews, alerts, job-tracker.
 If the channel has a webhook in JobAgent\\secrets-discord.json, jobs are posted as colored
-embeds (one per stage, up to 6000 characters per message). Otherwise plain text via
+embeds (one per stage, one full-width field per job, up to 6000 characters per message). Otherwise plain text via
 `hermes send`. Either way: grouped by stage, URLs hidden behind titles, headers never repeated.
 """
 import argparse
@@ -23,9 +23,9 @@ import job_db
 
 WEBHOOKS_FILE = Path(__file__).resolve().parent.parent / "secrets-discord.json"
 TEXT_LIMIT = 1900          # Discord: 2000 characters per text message
-EMBED_DESC_LIMIT = 4000    # Discord: 4096 per embed description
 MESSAGE_EMBED_LIMIT = 5800  # Discord: 6000 across all embeds of one message
 MAX_EMBEDS = 10
+MAX_FIELDS = 25             # Discord: 25 fields per embed
 
 
 def _status(*names):
@@ -68,17 +68,18 @@ def display_url(a):
     return a["job_url"]
 
 
-def job_line(a, group, embed):
+def job_line(a, group):
+    """Plain-text fallback line for one job."""
     title = a["position"].replace("[", "(").replace("]", ")")  # brackets would break the masked link
     url = display_url(a)
-    link = (f"[{title}]({url})" if embed else f"[{title}](<{url}>)") if url else title
+    link = f"[{title}](<{url}>)" if url else title
     meta = [a["company"], a["source"], f"`{a['id']}`"]
     if a["interview_date"] and a["status"] in ("INTERVIEW", "FINAL_INTERVIEW"):
         meta.insert(0, f"📅 {a['interview_date']}")
     line = f"**{link}**\n" + " · ".join(x for x in meta if x)
     sub = a["next_action"] if group[0] in ACTION_STAGES else (a["notes"] if group[2] else None)
     if sub:
-        line += f"\n*{short(sub)}*" if embed else f"\n-# {short(sub)}"
+        line += f"\n-# {short(sub)}"
     return line
 
 
@@ -90,24 +91,47 @@ def grouped(apps):
     return [(g, out[g]) for g in GROUPS + [OTHER] if g in out]
 
 
+def job_field(a, group):
+    """One full-width embed field per job: title as the name; company, source, ID, link and next step below."""
+    meta = [a["company"], a["source"], f"`{a['id']}`"]
+    if a["interview_date"] and a["status"] in ("INTERVIEW", "FINAL_INTERVIEW"):
+        meta.insert(0, f"📅 {a['interview_date']}")
+    url = display_url(a)
+    if url:
+        meta.append(f"[Open posting]({url})")
+    value = " · ".join(x for x in meta if x)
+    if group[0] in ACTION_STAGES or group[0] == "✅ Prepare":
+        if a["next_action"]:
+            value += f"\n**Next step:** {short(a['next_action'])}"
+    elif group[2] and a["notes"]:
+        value += f"\n**{'Review reason' if group[0] == '⚠️ Needs review' else 'Reason'}:** {short(a['notes'])}"
+    return {"name": a["position"][:256], "value": value[:1024], "inline": False}
+
+
+def embed_size(e):
+    """Characters Discord counts toward its 6000-per-message embed limit."""
+    return (len(e.get("title", "")) + len(e.get("description", "")) + len(e.get("footer", {}).get("text", ""))
+            + sum(len(f["name"]) + len(f["value"]) for f in e.get("fields", [])))
+
+
 def render_embeds(heading, apps, summary):
-    """Returns Discord webhook payloads: one embed per stage, split only when a limit forces it."""
+    """Returns Discord webhook payloads: one embed per stage (one field per job), split only when a limit forces it."""
     embeds = []
     for g, items in grouped(apps):
-        desc, part = "", 0
+        embed = {"title": f"{g[0]} · {len(items)}", "color": g[3], "fields": []}
         for a in items:
-            line = job_line(a, g, embed=True) + "\n"
-            if desc and len(desc) + len(line) > EMBED_DESC_LIMIT:
-                embeds.append({"title": f"{g[0]} ({len(items)})" if part == 0 else None, "description": desc, "color": g[3]})
-                desc, part = "", part + 1
-            desc += line
-        embeds.append({"title": f"{g[0]} ({len(items)})" if part == 0 else None, "description": desc, "color": g[3]})
+            field = job_field(a, g)
+            if embed["fields"] and (len(embed["fields"]) == MAX_FIELDS
+                                    or embed_size(embed) + len(field["name"]) + len(field["value"]) > MESSAGE_EMBED_LIMIT):
+                embeds.append(embed)
+                embed = {"color": g[3], "fields": []}  # continuation: no repeated title
+            embed["fields"].append(field)
+        embeds.append(embed)
 
     content = f"## {heading}" + (f"\n{summary}" if summary else "")
     payloads, batch, size = [], [], 0
     for e in embeds:
-        e = {k: v for k, v in e.items() if v is not None}
-        n = len(e.get("title", "")) + len(e["description"])
+        n = embed_size(e)
         if batch and (len(batch) == MAX_EMBEDS or size + n > MESSAGE_EMBED_LIMIT):
             payloads.append({"embeds": batch})
             batch, size = [], 0
@@ -124,7 +148,7 @@ def render_text(heading, apps, summary):
     messages, current = [], f"## {heading}" + (f"\n{summary}" if summary else "")
     for g, items in grouped(apps):
         for i, a in enumerate(items):
-            block = (f"\n### {g[0]} ({len(items)})" if i == 0 else "") + "\n" + job_line(a, g, embed=False)
+            block = (f"\n### {g[0]} ({len(items)})" if i == 0 else "") + "\n" + job_line(a, g)
             if len(current) + len(block) > TEXT_LIMIT:
                 messages.append(current)
                 current = block.lstrip("\n")
