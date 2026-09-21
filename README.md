@@ -65,14 +65,21 @@ You need Windows with Microsoft Word (for PDFs), Python 3.11+, Node.js, Docker, 
 
 ### Guided terminal setup
 
-Clone or download this repository, open Windows Terminal in its folder, and run:
+Clone or download this repository, open a terminal in its folder, and install the app
+once into a virtual environment:
 
 ```powershell
-.\setup.ps1
+python -m venv .venv
+.venv\Scripts\python -m pip install -e .
 ```
 
-This creates a virtual environment, installs the app, and opens the setup wizard in
-your terminal. It takes you through nine steps: checking your computer, choosing your
+Then start the setup wizard:
+
+```powershell
+.venv\Scripts\jobagent setup
+```
+
+The wizard runs full-screen in your terminal and takes you through nine steps: checking your computer, choosing your
 model, importing and reviewing your resume, job preferences, Discord, Gmail through
 n8n, a test run that posts a SAMPLE application package, and turning on the schedules.
 
@@ -81,8 +88,7 @@ button, Space ticks a checkbox, Alt+Right / Alt+Left change steps, Ctrl+S saves,
 and Ctrl+Q saves and exits. Nothing connects to an account or runs on a schedule
 until you tick that step's confirmation box.
 
-You can stop at any time; run `.\setup.ps1` (or `.venv\Scripts\jobagent setup`)
-again to continue where you left off. Keep the folder where it is, because the app is
+You can stop at any time; run `.venv\Scripts\jobagent setup` again to continue where you left off. Keep the folder where it is, because the app is
 installed from it. Connection checks run again after reopening, since a saved
 checkmark doesn't prove an account is still connected. Webhook URLs are masked
 and saved only in `secrets-discord.json`.
@@ -105,6 +111,6 @@ python tools/test_job_db.py
 python tools/test_discord_post.py
 python tools/test_app_email_monitor.py
 python tools/cover_letter/test_cover_letter.py   # needs Word and a profile
-.venv\Scripts\python tools/test_setup.py        # offline, needs the .venv from setup.ps1
+.venv\Scripts\python tools/test_setup.py        # offline, needs the .venv from the setup install
 python tools/test_n8n_fetch.py                   # offline
 ```

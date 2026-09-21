@@ -16,24 +16,25 @@ installers, so you don't need them installed before you begin.
 
 ## Start the wizard
 
-Open Windows Terminal in the JobAgent folder and run:
+Open a terminal (Windows Terminal is best) in the JobAgent folder. Install the app
+once into a virtual environment:
 
 ```powershell
-.\setup.ps1
+python -m venv .venv
+.venv\Scripts\python -m pip install -e .
 ```
 
-This creates `.venv`, installs the app, and opens the wizard. To reopen it later
-(for example after installing something it asked for), run either of these:
+Then start the wizard:
 
 ```powershell
-.\setup.ps1
 .venv\Scripts\jobagent setup
 ```
 
-If Windows says running scripts is disabled, use
-`powershell -ExecutionPolicy Bypass -File .\setup.ps1` instead.
-If you prefer to install by hand: `python -m venv .venv`, then
-`.venv\Scripts\python -m pip install -e .`, then `.venv\Scripts\jobagent setup`.
+Run the same command to reopen it later, for example after installing something it
+asked for. It picks up where you left off.
+
+Keep the JobAgent folder where it is: the app is installed from it, so moving or
+deleting the folder breaks the command.
 
 ## Using the wizard
 
