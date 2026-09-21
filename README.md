@@ -1,5 +1,7 @@
 # Job Application Agent
 
+![JobAgent — Your job search. Under your control. Discover, track, prepare, and review.](docs/assets/jobagent-cover.png)
+
 A local-first job search assistant. It reads job alerts and application emails from Gmail, keeps a tracker of every application in SQLite, writes fact-checked cover letters, and reports everything in a private Discord server. I review and submit every application myself; the agent never sends an email or submits a form.
 
 Built on [Hermes Agent](https://hermes-agent.nousresearch.com) (scheduling, reasoning, Discord chat) and [n8n](https://n8n.io) (Gmail access), running on one Windows PC.
