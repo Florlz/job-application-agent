@@ -24,7 +24,7 @@ import os
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(os.environ.get("JOB_DB", Path.home() / "JobAgent" / "data" / "job-hunt.db"))
+DB_PATH = Path(os.environ.get("JOB_DB", Path(__file__).resolve().parent.parent / "data" / "job-hunt.db")).resolve()
 
 STATUSES = (
     "FOUND", "REVIEW", "READY_TO_APPLY", "APPLIED", "RECRUITER_SCREEN", "ASSESSMENT",

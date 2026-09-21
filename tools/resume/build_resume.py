@@ -8,6 +8,7 @@ Prints JSON {"docx", "pdf", "pages"}; the resume must stay on one page.
 """
 import datetime
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -37,10 +38,11 @@ def month(v):
 
 def resolve(profile, sel):
     ident = profile["identity"]
-    contact = [{"text": ident["resume_location"]}, {"text": ident["phone"]},
+    contact = [{"text": ident.get("resume_location") or ident["location"]}, {"text": ident.get("phone", "")},
                {"text": ident["email"], "url": f"mailto:{ident['email']}"},
-               {"text": ident["linkedin_url"], "url": f"https://{ident['linkedin_url']}"},
-               {"text": ident["github_url"], "url": f"https://{ident['github_url']}"}]
+               {"text": ident.get("linkedin_url", ""), "url": f"https://{ident.get('linkedin_url', '')}"},
+               {"text": ident.get("github_url", ""), "url": f"https://{ident.get('github_url', '')}"}]
+    contact = [item for item in contact if item["text"]]
     projects = {p["id"]: p for p in profile["projects"]}
     exp = {e["id"]: e for e in profile["experience"]}
 
@@ -60,19 +62,19 @@ def resolve(profile, sel):
     exp_entries = []
     for pick in sel["experience"]:
         e = exp[pick["id"]]
-        exp_entries.append({"title": e["company"].replace(" - ", " – "), "date": f"{month(e['start'])} – {month(e['end'])}",
+        exp_entries.append({"title": e["company"].replace(" - ", " – "), "date": f"{month(e.get('start', ''))} – {month(e.get('end', ''))}",
                             "subtitle": e["title"], "bullets": facts_ok(e, pick["bullets"])})
-    edu = [{"title": e["school"], "date": f"{e['start']} – {e['end']}",
-            "subtitle": f"{e['degree']} | {e['location']}",
+    edu = [{"title": e["school"], "date": f"{e.get('start', '')} – {e.get('end', '')}",
+            "subtitle": " | ".join(filter(None, (e["degree"], e.get("location", "")))),
             "bullets": ["  |  ".join(f.rstrip(".") for f in e["verified_facts"])]} for e in profile["education"]]
-    lead = [{"title": e["organization"].replace(" - ", " – "), "date": e["date"].replace(" - ", " – "), "subtitle": e["title"],
+    lead = [{"title": e["organization"].replace(" - ", " – "), "date": str(e.get("date", "")).replace(" - ", " – "), "subtitle": e["title"],
              "bullets": e["verified_facts"]} for e in profile["leadership"]]
 
-    return {"name": ident["resume_name"].upper(), "headline": ident["headline"], "contact": contact, "layout": LAYOUT,
+    return {"name": (ident.get("resume_name") or ident["name"]).upper(), "headline": ident.get("headline", ""), "contact": contact, "layout": LAYOUT,
             "sections": [
-                {"kind": "text", "title": "Professional Summary", "text": " ".join(profile["summary"].split())},
+                {"kind": "text", "title": "Professional Summary", "text": " ".join(profile.get("summary", "").split())},
                 {"kind": "skills", "title": "Technical Skills",
-                 "lines": [{"label": SKILL_LABELS[k], "items": v} for k, v in sel["skills"].items()]},
+                 "lines": [{"label": SKILL_LABELS.get(k, k.replace("_", " ").title()), "items": v} for k, v in sel["skills"].items()]},
                 {"kind": "entries", "title": "Projects & Client Work", "entries": proj_entries},
                 {"kind": "entries", "title": "Professional Experience", "entries": exp_entries},
                 {"kind": "entries", "title": "Education", "entries": edu},
@@ -81,11 +83,12 @@ def resolve(profile, sel):
 
 
 def main():
-    out = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "output" / "resume-preview"
+    out = (Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "output" / "resume-preview").resolve()
     out.mkdir(parents=True, exist_ok=True)
     profile = yaml.safe_load((ROOT / "profile" / "career-profile.yaml").read_text(encoding="utf-8"))
     sel = json.loads((ROOT / "profile" / "standard-resume.json").read_text(encoding="utf-8"))
-    docx, pdf = out / "Florian_Monte_Resume.docx", out / "Florian_Monte_Resume.pdf"
+    person = "_".join(re.findall(r"[\w-]+", profile["identity"].get("resume_name") or profile["identity"]["name"])) or "Applicant"
+    docx, pdf = out / f"{person}_Resume.docx", out / f"{person}_Resume.pdf"
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as f:
         json.dump(resolve(profile, sel), f)
     try:

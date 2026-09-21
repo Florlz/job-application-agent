@@ -61,7 +61,35 @@ Not in this repository, on purpose: my job database, emails, applications, cover
 
 ## Running it yourself
 
-You need Windows with Microsoft Word (for PDFs), Python 3 with PyYAML, Node.js, Docker, and Hermes Agent.
+You need Windows with Microsoft Word (for PDFs), Python 3.11+, Node.js, Docker, and Hermes Agent. The setup wizard checks for all of these and links to the installers for anything missing.
+
+### Guided terminal setup
+
+Clone or download this repository, open Windows Terminal in its folder, and run:
+
+```powershell
+.\setup.ps1
+```
+
+This creates a virtual environment, installs the app, and opens the setup wizard in
+your terminal. It takes you through nine steps: checking your computer, choosing your
+model, importing and reviewing your resume, job preferences, Discord, Gmail through
+n8n, a test run that posts a SAMPLE application package, and turning on the schedules.
+
+Getting around: Tab / Shift+Tab move between fields and buttons, Enter presses a
+button, Space ticks a checkbox, Alt+Right / Alt+Left change steps, Ctrl+S saves,
+and Ctrl+Q saves and exits. Nothing connects to an account or runs on a schedule
+until you tick that step's confirmation box.
+
+You can stop at any time; run `.\setup.ps1` (or `.venv\Scripts\jobagent setup`)
+again to continue where you left off. Keep the folder where it is, because the app is
+installed from it. Connection checks run again after reopening, since a saved
+checkmark doesn't prove an account is still connected. Webhook URLs are masked
+and saved only in `secrets-discord.json`.
+
+**[Read the setup guide](docs/SETUP.md)** for what to have ready, a map of the
+screen, what each step asks for, and how to recover from errors. The manual steps
+below are the old way to set it up, without the wizard.
 
 1. Copy `profile/career-profile.example.yaml` to `career-profile.yaml` and `standard-resume.example.json` to `standard-resume.json`, then fill in your own facts.
 2. `cd tools && npm install` (installs `docx`).
@@ -77,4 +105,6 @@ python tools/test_job_db.py
 python tools/test_discord_post.py
 python tools/test_app_email_monitor.py
 python tools/cover_letter/test_cover_letter.py   # needs Word and a profile
+.venv\Scripts\python tools/test_setup.py        # offline, needs the .venv from setup.ps1
+python tools/test_n8n_fetch.py                   # offline
 ```
